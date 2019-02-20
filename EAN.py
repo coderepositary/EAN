@@ -1,4 +1,4 @@
-
+#coding:utf-8
 import os
 import numpy as np
 import tensorflow as tf
@@ -13,20 +13,21 @@ from tensorflow.contrib.data import Iterator
 """
 Configuration Part.
 """
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 config = tf.ConfigProto()
 config.gpu_options.per_process_gpu_memory_fraction = 1
 # Path to the textfiles for the trainings and validation set
-option="/home/share/liujinhuan/new_ijk_data_alllable01/"
+option="/storage/liujinhuan/liujinhuan/new_ijk_data/"
 train_file = option+'train_ijk_shuffled_811.txt'
 val_file = option+'valid_ijk_shuffled_811.txt'
 test_file = option+'test_ijk_shuffled_811.txt'
 # Learning params
 # learning_rate = 0.1
-num_epochs = 60
-batch_size = 300
-att_hidden=2**8
-n_hidden=2**10
+num_epochs = 30
+batch_size = 600
+att_hidden=2**7
+n_hidden=2**9
 max_l=43
 dropout_rate = 0.5
 num_classes = 2
@@ -59,12 +60,12 @@ def make_idx_data(word_idx_map, max_l):
     print('loading text data')
     print('now():' + str(datetime.now()))
     train_i,train_i_label, train_j,train_j_label, train_k,train_k_label = pickle.load(
-        open("/home/share/liujinhuan/new_ijk_data_alllable01/AUC_new_dataset_train_811.pkl", "rb"))
+        open("/storage/liujinhuan/liujinhuan/new_ijk_data/AUC_new_dataset_train_811.pkl", "rb"))
     valid_i,valid_i_label, valid_j,valid_j_label, valid_k,valid_k_label = pickle.load(
-        open("/home/share/liujinhuan/new_ijk_data_alllable01/AUC_new_dataset_valid_811.pkl", "rb"))
+        open("/storage/liujinhuan/liujinhuan/new_ijk_data/AUC_new_dataset_valid_811.pkl", "rb"))
     print("valid_i.shape",len(valid_i[0]))
     test_i,test_i_label, test_j,test_j_label, test_k,test_k_label = pickle.load(
-        open("/home/share/liujinhuan/new_ijk_data_alllable01/AUC_new_dataset_test_811.pkl", "rb"))
+        open("/storage/liujinhuan/liujinhuan/new_ijk_data/AUC_new_dataset_test_811.pkl", "rb"))
     print('text data loaded')
     print('now():' + str(datetime.now()))
 
@@ -107,7 +108,7 @@ def make_idx_data(word_idx_map, max_l):
 
 
 print ("loading w2v data...")
-text_x = pickle.load(open("/home/share/liujinhuan/cloth.binary.p", "rb"))
+text_x = pickle.load(open("/storage/liujinhuan/liujinhuan/cloth.binary.p", "rb"))
 text_revs, text_W, text_W2, text_word_idx_map, text_vocab = text_x[0], text_x[1], text_x[2], text_x[3], text_x[4]
 # print(text_W.shape)
 datasets = make_idx_data(text_word_idx_map, max_l)
@@ -203,10 +204,9 @@ text_x_i = tf.placeholder(tf.int32,[int(batch_size/3),train_text_i.shape[1]])
 text_x_j = tf.placeholder(tf.int32,[int(batch_size/3),train_text_j.shape[1]])
 text_x_k = tf.placeholder(tf.int32,[int(batch_size/3),train_text_k.shape[1]])
 
-#y = tf.placeholder(tf.float32, [batch_size, num_classes])
 keep_prob = tf.placeholder(tf.float32)
-outfile = "record2/finetune2_textual_visual"+"_learning_rate_" + str(learning_rate) + "batch_size_" + str(batch_size) + "hidden_"+str(n_hidden)+str(datetime.now().strftime('%H-%M-%S') )+".txt"
-csvfile = "record2/finetune2_textual_visual"+"_learning_rate_" + str(learning_rate) + "batch_size_" + str(batch_size) + "hidden_"+str(n_hidden)+str(datetime.now().strftime('%H-%M-%S') )+".csv"
+outfile = "record2/finetune2_textual_visual"+ "batch_size_" + str(batch_size) + "hidden_"+str(n_hidden)+str(datetime.now().strftime('%H-%M-%S') )+".txt"
+csvfile = "record2/finetune2_textual_visual"+ "batch_size_" + str(batch_size) + "hidden_"+str(n_hidden)+str(datetime.now().strftime('%H-%M-%S') )+".csv"
 with tf.variable_scope("model1") as scope:
     model1 = AlexNet1(x, keep_prob, 0, batch_size)
 with tf.variable_scope("model2") as scope:
@@ -223,12 +223,13 @@ with tf.variable_scope("model_textj",reuse=True) as scope:
 
 #record by txt
 file = open(outfile, "w+")
+best_validation_auc_score = 0.0
 count = 0
-for _learning_rate in [0.01,0.05,0.1,0.5]:
-    for _lamda in range(-3,0,1):
+for _learning_rate in [0.01]:
+    for _lamda in [0.1]:
         count = count+1
         learning_rate = _learning_rate
-        lamda=10**_lamda
+        lamda=_lamda
         # if lamda==0.1:
         #     lamda=0.5
         print("lamda: {} n_hidden:{} learning_rate:{}\n".format(lamda,n_hidden,learning_rate))
@@ -244,8 +245,7 @@ for _learning_rate in [0.01,0.05,0.1,0.5]:
         text_output13 = model_textk.h_drop
         reg1,reg2,reg3=model1.reg,model2.reg,model3.reg
         text_reg1,text_reg2,text_reg3=model_texti.reg,model_textj.reg,model_textk.reg
-        initializer1=tf.random_normal_initializer()
-        # initializer1=tf.contrib.layers.xavier_initializer()
+        initializer1=tf.random_normal_initializer(mean=0.0, stddev=1.0, seed=None, dtype=tf.float32)
 
         W1 = tf.get_variable("W1"+str(count), (4096, n_hidden), dtype=tf.float32,trainable=True, )
         W2 = tf.get_variable("W2"+str(count), (4096, n_hidden), dtype=tf.float32,trainable=True, )
@@ -261,77 +261,65 @@ for _learning_rate in [0.01,0.05,0.1,0.5]:
         text_output1 = tf.sigmoid(tf.matmul(text_output11, text_W1) + text_b1)
         text_output2 = tf.sigmoid(tf.matmul(text_output12, text_W2) + text_b2)
         text_output3 = tf.sigmoid(tf.matmul(text_output13, text_W2) + text_b2)
-        fea_size = output1.shape[1].value
-
-        # initializer1=tf.zeros_initializer(),
-        Wi = tf.get_variable("Wi"+str(count), (fea_size, att_hidden),initializer=initializer1,dtype=tf.float32,trainable=True, )
-        text_Wi = tf.get_variable("text_Wi"+str(count), (fea_size, att_hidden),initializer=initializer1,dtype=tf.float32,trainable=True, )
-        b = tf.get_variable("b_att"+str(count), (att_hidden,),initializer = tf.constant_initializer(0.1), dtype=tf.float32,trainable=True, )
-        text_b = tf.get_variable("text_b_att"+str(count), (att_hidden,),initializer = tf.constant_initializer(0.1),dtype=tf.float32,trainable=True, )
-        W_all = tf.get_variable("W_all"+str(count), (att_hidden,1),initializer=initializer1,dtype=tf.float32,trainable=True, )
-        text_W_all = tf.get_variable("text_W_all"+str(count), (att_hidden,1), initializer=initializer1,dtype=tf.float32,trainable=True, )
-        c = tf.get_variable("c_att"+str(count), (fea_size,),initializer = tf.constant_initializer(0.1),dtype=tf.float32,trainable=True, )
-        text_c = tf.get_variable("text_c_att"+str(count), (fea_size,),initializer = tf.constant_initializer(0.1),dtype=tf.float32,trainable=True, )
+        fea_size = n_hidden
 
         text_att_n = []
         text_btt_n = []
+        btt_n = []
+        att_n = []
 
         for k in range(0,fea_size):
             # with tf.variable_scope('atten_initia', reuse = None):
             text_f_n = tf.one_hot(k,fea_size)
             text_tile_f_n = tf.tile(text_f_n,[int(batch_size/3)])
             text_reshape_f_n = tf.reshape(text_tile_f_n,[int(batch_size/3),fea_size])
+            Wi = tf.get_variable("Wi"+str(count)+str(k), (fea_size, att_hidden),initializer=initializer1,dtype=tf.float32,trainable=True, )
+            text_Wi = tf.get_variable("text_Wi"+str(count)+str(k), (fea_size, att_hidden),initializer=initializer1,dtype=tf.float32,trainable=True, )
+            b = tf.get_variable("b_att"+str(count)+str(k), (att_hidden,),initializer = tf.constant_initializer(0.1), dtype=tf.float32,trainable=True, )
+            text_b = tf.get_variable("text_b_att"+str(count)+str(k), (att_hidden,),initializer = tf.constant_initializer(0.1),dtype=tf.float32,trainable=True, )
+            W_all = tf.get_variable("W_all"+str(count)+str(k), (att_hidden,1),initializer=initializer1,dtype=tf.float32,trainable=True, )
+            text_W_all = tf.get_variable("text_W_all"+str(count)+str(k), (att_hidden,1), initializer=initializer1,dtype=tf.float32,trainable=True, )
+            c = tf.get_variable("c_att"+str(count)+str(k), (fea_size,),initializer = tf.constant_initializer(0.1),dtype=tf.float32,trainable=True, )
+            text_c = tf.get_variable("text_c_att"+str(count)+str(k), (fea_size,),initializer = tf.constant_initializer(0.1),dtype=tf.float32,trainable=True, )
 
-            text_a_n =  tf.matmul(tf.nn.relu(tf.matmul(text_output1*text_output2*text_reshape_f_n, text_Wi)+text_b), text_W_all)+text_c[k]
-            text_b_n =  tf.matmul(tf.nn.relu(tf.matmul(text_output1*text_output3*text_reshape_f_n, text_Wi)+text_b), text_W_all)+text_c[k]
+            a_n = tf.matmul((tf.nn.relu6(tf.matmul(output1*output2*text_reshape_f_n, Wi)+b)), W_all) + c[k]
+            b_n = tf.matmul((tf.nn.relu6(tf.matmul(output1*output3*text_reshape_f_n, Wi)+ b)), W_all) + c[k]
+            text_a_n =  tf.matmul(tf.nn.relu6(tf.matmul(text_output1*text_output2*text_reshape_f_n, text_Wi)+text_b), text_W_all)+text_c[k]
+            text_b_n =  tf.matmul(tf.nn.relu6(tf.matmul(text_output1*text_output3*text_reshape_f_n, text_Wi)+text_b), text_W_all)+text_c[k]
             text_att_n.append(text_a_n)
             text_btt_n.append(text_b_n)
-        text_att_ = text_att_n[0]
-        for i in range(1, fea_size):
-            text_att_ = tf.concat([text_att_, text_att_n[i]],1)
-        text_att_nor = tf.nn.softmax(text_att_)
-        text_btt_ = text_btt_n[0]
-        for j in range(1, fea_size):
-            text_btt_ = tf.concat([text_btt_, text_btt_n[j]],1)
-        text_btt_nor = tf.nn.softmax(text_btt_)
-
-        btt_n = []
-        att_n = []
-        for m in range(0,fea_size):
-            # with tf.variable_scope('atten_initia', reuse = tf.AUTO_REUSE):
-            f_n = tf.one_hot(m,fea_size)
-            tile_f_n = tf.tile(f_n,[int(batch_size/3)])
-            reshape_f_n = tf.reshape(tile_f_n,[int(batch_size/3),fea_size])
-
-            a_n = tf.matmul((tf.nn.relu(tf.matmul(output1*output2*reshape_f_n, Wi)+b)), W_all) + c[m]
-            b_n = tf.matmul((tf.nn.relu(tf.matmul(output1*output3*reshape_f_n, Wi)+ b)), W_all) + c[m]
             att_n.append(a_n)
             btt_n.append(b_n)
+        text_att_ = text_att_n[0]
+        text_btt_ = text_btt_n[0]
         att_ = att_n[0]
-        for n in range(1, fea_size):
-            att_ = tf.concat([att_, att_n[n]],1)
         btt_ = btt_n[0]
-        for o in range(1, fea_size):
-            btt_ = tf.concat([btt_, btt_n[o]],1)
-        att_nor = tf.nn.softmax(att_)
-        btt_nor = tf.nn.softmax(btt_)
+        for i in range(1, fea_size):
+            text_att_ = tf.concat([text_att_, text_att_n[i]],1)
+            text_btt_ = tf.concat([text_btt_, text_btt_n[i]],1)
+            att_ = tf.concat([att_, att_n[i]],1)
+            btt_ = tf.concat([btt_, btt_n[i]],1)
+        text_att_nor = tf.nn.softmax(tf.exp(text_att_))
+        text_btt_nor = tf.nn.softmax(tf.exp(text_btt_))
+        att_nor = tf.nn.softmax(tf.exp(att_))
+        btt_nor = tf.nn.softmax(tf.exp(btt_))
         score1=tf.reduce_sum(tf.subtract(text_att_nor*text_output1*text_output2,text_btt_nor*text_output1*text_output3)+tf.subtract(att_nor*output1*output2,btt_nor*output1*output3),1)
 
         reg=text_reg1+text_reg2+text_reg3+reg1+reg2+reg3+tf.reduce_mean(W1**2)+tf.reduce_mean(W2**2)*2\
             +tf.reduce_mean(text_W1**2)+tf.reduce_mean(text_W2**2)*2\
+            +tf.reduce_mean(text_b1**2)+tf.reduce_mean(text_b2**2)*2\
             +tf.reduce_mean(text_Wi**2)+tf.reduce_mean(text_W_all**2)\
             +tf.reduce_mean(Wi**2)+tf.reduce_mean(W_all**2)\
-
+            +tf.reduce_mean(text_b**2)+tf.reduce_mean(text_c**2)\
+            +tf.reduce_mean(b**2)+tf.reduce_mean(c**2)
 
         score=tf.sigmoid(score1)
         # List of trainable variables of the layers we want to train
-        #var_list = [v for v in tf.trainable_variables() if v.name.split('/')[0] in train_layers]
         var_list= [v for v in tf.trainable_variables()]
         # Op for calculating the loss
         with tf.name_scope("cross_ent"):
-            #loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=score,labels=y))
             L_sqr=reg
-            L_sup=tf.reduce_mean(score)
+            L_sup=tf.reduce_mean(score1)
             L_rec=lamda*L_sqr
             loss =L_rec-L_sup
 
@@ -367,13 +355,13 @@ for _learning_rate in [0.01,0.05,0.1,0.5]:
             correct_pred = tf.equal(res1, res2)
             accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 
-        # Add the accuracy to the summary
+        # # Add the accuracy to the summary
         tf.summary.scalar('accuracy', accuracy)
-
-        # Merge all summaries together
+        #
+        # # Merge all summaries together
         merged_summary = tf.summary.merge_all()
-
-        # Initialize the FileWriter
+        #
+        # # Initialize the FileWriter
         writer = tf.summary.FileWriter(filewriter_path)
 
         # Initialize an saver for store model checkpoints
@@ -391,14 +379,14 @@ for _learning_rate in [0.01,0.05,0.1,0.5]:
             # Initialize all variables
             sess.run(tf.global_variables_initializer())
             # Add the model graph to TensorBoard
-            writer.add_graph(sess.graph)
+            # writer.add_graph(sess.graph)
             # Load the pretrained weights into the non-trainable layer
             model1.load_initial_weights(sess,"model1")
             model2.load_initial_weights(sess,"model2")
             model3.load_initial_weights(sess,"model2")
             # model4.load_initial_weights(sess,"model_text")
             # To continue training from one of your checkpoints
-            # saver.restore(sess, "tmp2/tune_alexnet/checkpoints/model_epoch60.ckpt")
+            # saver.restore(sess, "tmp2/tune_alexnet/checkpoints/model_epoch00.ckpt")
             # print("{} Open Tensorboard at --logdir {}".format(datetime.now(),
             #                                                   filewriter_path))
 
@@ -468,8 +456,8 @@ for _learning_rate in [0.01,0.05,0.1,0.5]:
                 sess.run(val_text_i_init_op)
                 sess.run(val_text_j_init_op)
                 sess.run(val_text_k_init_op)
-                test_acc = 0.
-                test_count = 0
+                val_acc = 0.
+                val_count = 0
                 for valid_epoch in range(val_batches_per_epoch):
 
                     img_batch, label_batch = sess.run(next_batch)
@@ -483,47 +471,49 @@ for _learning_rate in [0.01,0.05,0.1,0.5]:
                                                         text_x_k:text_batch_k,
                                                         keep_prob:1.})
                    # print(curres)
-                    test_acc += acc
-                    test_count += 1
-                test_acc /= test_count
+                    val_acc += acc
+                    val_count += 1
+                val_acc /= val_count
                 print("{}   Validation Accuracy = {:.4f}".format(datetime.now(),
-                                                                 test_acc))
+                                                                 val_acc))
                 file.write("    Validation Accuracy = {:.4f}\n".format(
-                                                                test_acc))
+                                                                val_acc))
                 # print("{} Saving checkpoint of model...".format(datetime.now()))
 
                 # save checkpoint of the model
-                checkpoint_name = os.path.join(checkpoint_path,
-                                               'model_epoch'+str(epoch+1)+'.ckpt')
-                save_path = saver.save(sess, checkpoint_name)
+                # checkpoint_name = os.path.join(checkpoint_path,
+                #                                'model_epoch'+str(epoch+1)+'.ckpt')
+                # save_path = saver.save(sess, checkpoint_name)
                 # print("{} Model checkpoint saved at {}".format(datetime.now(),
                 #                                                checkpoint_name))
                 sess.run(test_init_op)
                 sess.run(tes_text_i_init_op)
                 sess.run(tes_text_j_init_op)
                 sess.run(tes_text_k_init_op)
-                test_acc = 0.
-                test_count = 0
-                for test_epoch in range(test_batches_per_epoch):
-                    img_batch, label_batch = sess.run(next_batch)
-                    text_batch_i, labeli_test_batch = sess.run(next_batchi)
-                    text_batch_j, labelj_test_batch = sess.run(next_batchj)
-                    text_batch_k, labelk_test_batch = sess.run(next_batchk)
-                    acc = sess.run(accuracy, feed_dict={x: img_batch,
-                                                        y: label_batch[0:batch_size:3],
-                                                        text_x_i:text_batch_i,
-                                                        text_x_j:text_batch_j,
-                                                        text_x_k:text_batch_k,
-                                                        keep_prob:1.})
-                    test_acc += acc
-                    test_count += 1
-                test_acc /= test_count
-                print("{}               Test Accuracy = {:.4f}".format(datetime.now(),
-                                                                       test_acc))
-                file.write("                Test Accuracy = {:.4f}\n".format(
-                    test_acc))
-                file.flush()
+
+                if val_acc > best_validation_auc_score:
+                    best_validation_auc_score = val_acc
+                    test_acc = 0.
+                    test_count = 0
+                    for test_epoch in range(test_batches_per_epoch):
+                        img_batch, label_batch = sess.run(next_batch)
+                        text_batch_i, labeli_test_batch = sess.run(next_batchi)
+                        text_batch_j, labelj_test_batch = sess.run(next_batchj)
+                        text_batch_k, labelk_test_batch = sess.run(next_batchk)
+                        acc = sess.run(accuracy, feed_dict={x: img_batch,
+                                                            y: label_batch[0:batch_size:3],
+                                                            text_x_i:text_batch_i,
+                                                            text_x_j:text_batch_j,
+                                                            text_x_k:text_batch_k,
+                                                            keep_prob:1.})
+                        test_acc += acc
+                        test_count += 1
+                    test_acc /= test_count
+                    print("{}               Test Accuracy = {:.4f}".format(datetime.now(),
+                                                                           test_acc))
+                    file.write("                Test Accuracy = {:.4f}\n".format(
+                        test_acc))
+                    file.flush()
 
 file.write("end time: {}".format(datetime.now()))
 file.close()
-# file1.close()
